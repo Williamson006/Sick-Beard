@@ -37,10 +37,12 @@ SEASON_RESULT = -2
 ### Notification Types
 NOTIFY_SNATCH = 1
 NOTIFY_DOWNLOAD = 2
+NOTIFY_FOUND_WAITING = 3
 
 notifyStrings = {}
 notifyStrings[NOTIFY_SNATCH] = "Started Download"
 notifyStrings[NOTIFY_DOWNLOAD] = "Download Finished"
+notifyStrings[NOTIFY_FOUND_WAITING] = "Waiting for better encode"
 
 ### Episode statuses
 UNKNOWN = -1 # should never happen
@@ -52,6 +54,7 @@ SKIPPED = 5 # episodes we don't want
 ARCHIVED = 6 # episodes that you don't have locally (counts toward download completion stats)
 IGNORED = 7 # episodes that you don't want included in your download stats
 SNATCHED_PROPER = 9 # qualified with quality
+FOUND_WAITING_BETTER = 10 # Found an episode, but waiting to find a better quality replacement
 
 class Quality:
 
@@ -62,6 +65,7 @@ class Quality:
     HDWEBDL = 1<<3 # 8
     HDBLURAY = 1<<4 # 16
     FULLHDBLURAY = 1<<5 # 32
+    HBRHD = 1<<6 # 64
 
     # put these bits at the other end of the spectrum, far enough out that they shouldn't interfere
     UNKNOWN = 1<<15
@@ -73,7 +77,8 @@ class Quality:
                       HDTV: "HD TV",
                       HDWEBDL: "720p WEB-DL",
                       HDBLURAY: "720p BluRay",
-                      FULLHDBLURAY: "1080p BluRay"}
+                      FULLHDBLURAY: "1080p BluRay",
+                      HBRHD: "High-Bitrate HD TV"}
 
     statusPrefixes = {DOWNLOADED: "Downloaded",
                       SNATCHED: "Snatched"}
@@ -128,6 +133,8 @@ class Quality:
             return Quality.SDTV
         elif checkName(["dvdrip.xvid", "bdrip.xvid", "dvdrip.divx", "dvdrip.ws.xvid"], any) and not checkName(["720p"], all):
             return Quality.SDDVD
+        elif checkName(["core2hd"], all):
+            return Quality.HBRHD
         elif checkName(["720p", "hdtv", "x264"], all) or checkName(["hr.ws.pdtv.x264"], any):
             return Quality.HDTV
         elif checkName(["720p", "web.dl"], all) or checkName(["720p", "itunes", "h.?264"], all):
@@ -181,14 +188,16 @@ Quality.DOWNLOADED = [Quality.compositeStatus(DOWNLOADED, x) for x in Quality.qu
 Quality.SNATCHED = [Quality.compositeStatus(SNATCHED, x) for x in Quality.qualityStrings.keys()]
 Quality.SNATCHED_PROPER = [Quality.compositeStatus(SNATCHED_PROPER, x) for x in Quality.qualityStrings.keys()]
 
+HBRHD = Quality.combineQualities([Quality.HBRHD], [])
 HD = Quality.combineQualities([Quality.HDTV, Quality.HDWEBDL, Quality.HDBLURAY], [])
 SD = Quality.combineQualities([Quality.SDTV, Quality.SDDVD], [])
 ANY = Quality.combineQualities([Quality.SDTV, Quality.SDDVD, Quality.HDTV, Quality.HDWEBDL, Quality.HDBLURAY, Quality.UNKNOWN], [])
 BEST = Quality.combineQualities([Quality.SDTV, Quality.HDTV, Quality.HDWEBDL], [Quality.HDTV])
 
-qualityPresets = (SD, HD, ANY)
+qualityPresets = (SD, HD, HBRHD, ANY)
 qualityPresetStrings = {SD: "SD",
                         HD: "HD",
+                        HBRHD: "HBR HD",
                         ANY: "Any"}
 
 class StatusStrings:
@@ -201,7 +210,8 @@ class StatusStrings:
                               SNATCHED_PROPER: "Snatched (Proper)",
                               WANTED: "Wanted",
                               ARCHIVED: "Archived",
-                              IGNORED: "Ignored"}
+                              IGNORED: "Ignored",
+                              FOUND_WAITING_BETTER: "Found, waiting for better quality"}
 
     def __getitem__(self, name):
         if name in Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER:
