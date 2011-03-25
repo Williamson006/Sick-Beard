@@ -1,10 +1,32 @@
+# Author: Nic Wolfe <nic@wolfeden.ca>
+# URL: http://code.google.com/p/sickbeard/
+#
+# This file is part of Sick Beard.
+#
+# Sick Beard is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Sick Beard is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Sick Beard.  If not, see <http://www.gnu.org/licenses/>.
+
 import sickbeard
+import shutil, time, os.path, sys
+
 from sickbeard import db
 from sickbeard import common
 from sickbeard import logger
+from sickbeard.providers.generic import GenericProvider
 
 from sickbeard import encodingKludge as ek
-import shutil, time, os.path, sys
+
+
 
 class MainSanityCheck(db.DBSanityCheck):
 
@@ -322,8 +344,36 @@ class PopulateRootDirs (AddLang):
         
         sickbeard.ROOT_DIRS = new_root_dirs
         
+        sickbeard.save_config()
+        
         self.incDBVersion()
         
+
+class SetNzbTorrentSettings(PopulateRootDirs):
+
+    def test(self):
+        return self.checkDBVersion() >= 8
+    
+    def execute(self):
+
+        use_torrents = False
+        use_nzbs = False
+
+        for cur_provider in sickbeard.providers.sortedProviderList():
+            if cur_provider.isEnabled():
+                if cur_provider.providerType == GenericProvider.NZB:
+                    use_nzbs = True
+                    logger.log(u"Provider "+cur_provider.name+" is enabled, enabling NZBs in the upgrade")
+                    break
+                elif cur_provider.providerType == GenericProvider.TORRENT:
+                    use_torrents = True
+                    logger.log(u"Provider "+cur_provider.name+" is enabled, enabling Torrents in the upgrade")
+                    break
+
+        sickbeard.USE_TORRENTS = use_torrents
+        sickbeard.USE_NZBS = use_nzbs
         
+        sickbeard.save_config()
         
+        self.incDBVersion()
         
