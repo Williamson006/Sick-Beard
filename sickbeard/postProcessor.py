@@ -20,7 +20,6 @@ from __future__ import with_statement
 
 import glob
 import os
-import os.path
 import re
 import shlex
 import subprocess
@@ -35,7 +34,8 @@ from sickbeard import helpers
 from sickbeard import history
 from sickbeard import logger
 from sickbeard import notifiers
-from sickbeard import sceneHelpers
+from sickbeard import show_name_helpers
+from sickbeard import scene_exceptions
 
 from sickbeard import encodingKludge as ek
 
@@ -104,7 +104,7 @@ class PostProcessor(object):
 
     def _list_associated_files(self, file_path):
     
-        if not file_path or not ek.ek(os.path.isfile, file_path):
+        if not file_path:
             return []
 
         file_path_list = []
@@ -112,7 +112,7 @@ class PostProcessor(object):
         base_name = file_path.rpartition('.')[0]+'.'
         
         # don't confuse glob with chars we didn't mean to use
-        base_name = re.sub(r'[\[\]\*\?]', r'\\\g<0>', base_name)
+        base_name = re.sub(r'[\[\]\*\?]', r'[\g<0>]', base_name)
     
         for associated_file_path in ek.ek(glob.glob, base_name+'*'):
             # only list it if the only non-shared part is the extension
@@ -248,7 +248,7 @@ class PostProcessor(object):
             # if we couldn't find the right one then just use the season folder defaut format
             if season_folder == '':
                 # for air-by-date shows use the year as the season folder
-                if ep_obj.show.is_air_by_date:
+                if ep_obj.show.air_by_date:
                     season_folder = str(ep_obj.airdate.year)
                 else:
                     season_folder = sickbeard.SEASON_FOLDERS_FORMAT % (ep_obj.season)
@@ -327,7 +327,7 @@ class PostProcessor(object):
         to_return = (None, season, episodes)
     
         # do a scene reverse-lookup to get a list of all possible names
-        name_list = sceneHelpers.sceneToNormalShowNames(parse_result.series_name)
+        name_list = show_name_helpers.sceneToNormalShowNames(parse_result.series_name)
 
         if not name_list:
             return (None, season, episodes)
@@ -340,7 +340,7 @@ class PostProcessor(object):
         # for each possible interpretation of that scene name
         for cur_name in name_list:
             self._log(u"Checking scene exceptions for a match on "+cur_name, logger.DEBUG)
-            scene_id = sceneHelpers.get_scene_exception_by_name(cur_name)
+            scene_id = scene_exceptions.get_scene_exception_by_name(cur_name)
             if scene_id:
                 self._log(u"Scene exception lookup got tvdb id "+str(scene_id)+u", using that", logger.DEBUG)
                 _finalize(parse_result)
@@ -362,7 +362,7 @@ class PostProcessor(object):
     
                 self._log(u"Looking up name "+cur_name+u" on TVDB", logger.DEBUG)
                 showObj = t[cur_name]
-            except (tvdb_exceptions.tvdb_exception), e:
+            except (tvdb_exceptions.tvdb_exception):
                 # if none found, search on all languages
                 try:
                     # There's gotta be a better way of doing this but we don't wanna
@@ -374,11 +374,11 @@ class PostProcessor(object):
 
                     self._log(u"Looking up name "+cur_name+u" in all languages on TVDB", logger.DEBUG)
                     showObj = t[cur_name]
-                except (tvdb_exceptions.tvdb_exception, IOError), e:
+                except (tvdb_exceptions.tvdb_exception, IOError):
                     pass
 
                 continue
-            except (IOError), e:
+            except (IOError):
                 continue
             
             self._log(u"Lookup successful, using tvdb id "+str(showObj["id"]), logger.DEBUG)
@@ -433,7 +433,7 @@ class PostProcessor(object):
                 episodes = cur_episodes
             
             # for air-by-date shows we need to look up the season/episode from tvdb
-            if season == -1 and tvdb_id:
+            if season == -1 and tvdb_id and episodes:
                 self._log(u"Looks like this is an air-by-date show, attempting to convert the date to season/episode", logger.DEBUG)
                 
                 # try to get language set for this show
@@ -518,10 +518,10 @@ class PostProcessor(object):
     def _get_quality(self, ep_obj):
         
         ep_quality = common.Quality.UNKNOWN
-        oldStatus = None
+
         # make sure the quality is set right before we continue
         if ep_obj.status in common.Quality.SNATCHED + common.Quality.SNATCHED_PROPER:
-            oldStatus, ep_quality = common.Quality.splitCompositeStatus(ep_obj.status)
+            oldStatus, ep_quality = common.Quality.splitCompositeStatus(ep_obj.status) #@UnusedVariable
             if ep_quality != common.Quality.UNKNOWN:
                 self._log(u"The old status had a quality in it, using that: "+common.Quality.qualityStrings[ep_quality], logger.DEBUG)
                 return ep_quality
@@ -556,7 +556,7 @@ class PostProcessor(object):
             self._log(u"Absolute path to script: "+ek.ek(os.path.abspath, script_cmd[0]), logger.DEBUG)
             try:
                 p = subprocess.Popen(script_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=sickbeard.PROG_DIR)
-                out, err = p.communicate()
+                out, err = p.communicate() #@UnusedVariable
                 self._log(u"Script result: "+str(out), logger.DEBUG)
             except OSError, e:
                 self._log(u"Unable to run extra_script: "+str(e).decode('utf-8'))
@@ -574,7 +574,7 @@ class PostProcessor(object):
             return True
         
         # if the user downloaded it manually and it appears to be a PROPER/REPACK then it's priority
-        old_ep_status, old_ep_quality = common.Quality.splitCompositeStatus(ep_obj.status)
+        old_ep_status, old_ep_quality = common.Quality.splitCompositeStatus(ep_obj.status) #@UnusedVariable
         if self.is_proper and new_ep_quality >= old_ep_quality:
             self._log(u"This was manually downloaded but it appears to be a proper so I'm marking it as priority", logger.DEBUG)
             return True 

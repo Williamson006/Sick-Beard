@@ -19,11 +19,8 @@
 
 import urllib, urllib2
 import socket
-import sys
 import base64
 import time, struct
-
-#import config
 
 import sickbeard
 
@@ -130,10 +127,16 @@ class XBMCNotifier:
     
         fileString = title + "," + input
     
+        result = ''
+    
         for curHost in [x.strip() for x in host.split(",")]:
             command = {'command': 'ExecBuiltIn', 'parameter': 'Notification(' +fileString + ')' }
             logger.log(u"Sending notification to XBMC via host: "+ curHost +"username: "+ username + " password: " + password, logger.DEBUG)
-            return self._sendToXBMC(command, curHost, username, password)
+            if result:
+                result += ', '
+            result += curHost + ':' + self._sendToXBMC(command, curHost, username, password)
+
+        return result
 
     def _update_library(self, host, showName=None):
     
@@ -229,7 +232,7 @@ def wakeOnLan(ethernet_address):
 # Test Connection function
 def isHostUp(host,port):
 
-    (family, socktype, proto, garbage, address) = socket.getaddrinfo(host, port)[0]
+    (family, socktype, proto, garbage, address) = socket.getaddrinfo(host, port)[0] #@UnusedVariable
     s = socket.socket(family, socktype, proto)
 
     try:

@@ -18,19 +18,17 @@
 
 
 
-import urllib2
-import os.path
-import sys
 import datetime
-import time
-
-import xml.etree.cElementTree as etree
+import os
+import sys
+import re
+import urllib2
 
 import sickbeard
 
-from sickbeard import helpers, classes, exceptions, logger, db
+from sickbeard import helpers, classes, logger, db
 
-from sickbeard.common import *
+from sickbeard.common import Quality, MULTI_EP_RESULT, SEASON_RESULT
 from sickbeard import tvcache
 from sickbeard import encodingKludge as ek
 
@@ -229,7 +227,7 @@ class GenericProvider:
                 logger.log(u"Unable to parse the filename "+title+" into a valid episode", logger.WARNING)
                 continue
 
-            if episode.show.is_air_by_date:
+            if episode.show.air_by_date:
                 if parse_result.air_date != episode.airdate:
                     logger.log("Episode "+title+" didn't air on "+str(episode.airdate)+", skipping it", logger.DEBUG)
                     continue
@@ -278,7 +276,7 @@ class GenericProvider:
                 logger.log(u"Unable to parse the filename "+title+" into a valid episode", logger.WARNING)
                 continue
 
-            if not show.is_air_by_date:
+            if not show.air_by_date:
                 # this check is meaningless for non-season searches
                 if (parse_result.season_number != None and parse_result.season_number != season) or (parse_result.season_number == None and season != 1):
                     logger.log(u"The result "+title+" doesn't seem to be a valid episode for season "+str(season)+", ignoring")

@@ -37,10 +37,12 @@ from sickbeard import helpers, exceptions, logger
 from sickbeard import tvrage
 from sickbeard import config
 from sickbeard import image_cache
+from sickbeard import postProcessor
 
 from sickbeard import encodingKludge as ek
 
-from common import *
+from common import Quality, Overview
+from common import DOWNLOADED, SNATCHED, SNATCHED_PROPER, ARCHIVED, IGNORED, UNAIRED, WANTED, SKIPPED, UNKNOWN
 
 class TVShow(object):
 
@@ -69,7 +71,7 @@ class TVShow(object):
         self._isDirGood = False
 
         self.episodes = {}
-
+        
         otherShow = helpers.findCertainShow(sickbeard.showList, self.tvdbid)
         if otherShow != None:
             raise exceptions.MultipleShowObjectsException("Can't create a show if it already exists")
@@ -78,11 +80,6 @@ class TVShow(object):
 
         self.saveToDB()
 
-    def _is_air_by_date(self):
-        return self.air_by_date or (self.genre and "Talk Show" in self.genre)
-    
-    is_air_by_date = property(_is_air_by_date)
-    
     def _getLocation(self):
         if ek.ek(os.path.isdir, self._location):
             return self._location
@@ -317,7 +314,7 @@ class TVShow(object):
 
         try:
             # load the tvrage object, it will set the ID in its constructor if possible
-            tvr = tvrage.TVRage(self)
+            tvrage.TVRage(self)
             self.saveToDB()
         except exceptions.TVRageException, e:
             logger.log(u"Couldn't get TVRage ID because we're unable to sync TVDB and TVRage: "+str(e).decode('utf-8'), logger.DEBUG)
@@ -394,8 +391,11 @@ class TVShow(object):
                 epObj = t[self.tvdbid].airedOn(parse_result.air_date)[0]
                 season = int(epObj["seasonnumber"])
                 episodes = [int(epObj["episodenumber"])]
-            except tvdb_exceptions.tvdb_episodenotfound, e:
+            except tvdb_exceptions.tvdb_episodenotfound:
                 logger.log(u"Unable to find episode with date "+str(episodes[0])+" for show "+self.name+", skipping", logger.WARNING)
+                return None
+            except tvdb_exceptions.tvdb_error, e:
+                logger.log(u"Unable to contact TVDB: "+str(e), logger.WARNING)
                 return None
 
         for curEpNum in episodes:
@@ -542,6 +542,7 @@ class TVShow(object):
                 ltvdb_api_parms['language'] = self.lang
 
             t = tvdb_api.Tvdb(**ltvdb_api_parms)
+
         else:
             t = tvapi
 
@@ -757,7 +758,6 @@ class TVShow(object):
 
             goodName = rootEp.prettyName()
             actualName = os.path.splitext(os.path.basename(curLocation))
-            curEpDir = os.path.dirname(curLocation)
 
             if goodName == actualName[0]:
                 logger.log(str(self.tvdbid) + ": File " + rootEp.location + " is already named correctly, skipping", logger.DEBUG)
@@ -770,7 +770,8 @@ class TVShow(object):
                     for relEp in rootEp.relatedEps:
                         relEp.location = result
 
-            fileList = ek.ek(glob.glob, ek.ek(os.path.join, curEpDir, actualName[0] + "*").replace("[","*").replace("]","*"))
+            fileList = postProcessor.PostProcessor(curLocation)._list_associated_files(curLocation)
+            logger.log(u"Files associated to "+curLocation+": "+str(fileList), logger.DEBUG)
 
             for file in fileList:
                 result = helpers.rename_file(file, rootEp.prettyName())
@@ -893,7 +894,7 @@ class TVShow(object):
             return Overview.GOOD
         elif epStatus in Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER:
 
-            anyQualities, bestQualities = Quality.splitQuality(self.quality)
+            anyQualities, bestQualities = Quality.splitQuality(self.quality) #@UnusedVariable
             if bestQualities:
                 maxBestQuality = max(bestQualities)
             else:
@@ -1396,7 +1397,7 @@ class TVEpisode(object):
         if naming_quality == None:
             naming_quality = sickbeard.NAMING_QUALITY
 
-        if ((self.show.genre and "Talk Show" in self.show.genre) or self.show.air_by_date) and sickbeard.NAMING_DATES:
+        if self.show.air_by_date and sickbeard.NAMING_DATES:
             try:
                 goodEpString = self.airdate.strftime("%Y.%m.%d")
             except ValueError:
@@ -1423,7 +1424,7 @@ class TVEpisode(object):
             finalName += goodName
 
         if naming_quality:
-            epStatus, epQual = Quality.splitCompositeStatus(self.status)
+            epStatus, epQual = Quality.splitCompositeStatus(self.status) #@UnusedVariable
             if epQual != Quality.NONE:
                 finalName += config.naming_sep_type[naming_sep_type] + Quality.qualityStrings[epQual]
 

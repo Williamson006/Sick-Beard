@@ -17,15 +17,15 @@
 # along with Sick Beard.  If not, see <http://www.gnu.org/licenses/>.
 
 import urllib
+
 import sickbeard
 
 from sickbeard import logger, common
 
 try:
-    import lib.simplejson as json
+    import lib.simplejson as json #@UnusedImport
 except:
-    import json
-
+    import json #@Reimport
 
 API_URL = "https://%(username)s:%(secret)s@api.notifo.com/v1/send_notification"
 
@@ -41,14 +41,13 @@ class NotifoNotifier:
             "msg": msg,
         })
 
-        data = urllib.urlopen(apiurl, data)
         try:
-            try:
-                result = json.load(data)
-            except IOError:
-                return False
-        finally:
-            data.close()
+            data = urllib.urlopen(apiurl, data)	
+            result = json.load(data)
+        except IOError:
+            return False
+        
+        data.close()
 
         if result["status"] != "success" or result["response_message"] != "OK":
             return False
