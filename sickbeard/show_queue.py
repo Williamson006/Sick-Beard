@@ -30,6 +30,7 @@ from sickbeard.tv import TVShow
 from sickbeard import exceptions, logger, ui, db
 from sickbeard import generic_queue
 from sickbeard import name_cache
+from sickbeard.exceptions import ex
 
 class ShowQueue(generic_queue.GenericQueue):
 
@@ -87,7 +88,7 @@ class ShowQueue(generic_queue.GenericQueue):
         else:
             queueItemObj = QueueItemForceUpdate(show)
 
-        self.queue.append(queueItemObj)
+        self.add_item(queueItemObj)
 
         return queueItemObj
 
@@ -102,7 +103,7 @@ class ShowQueue(generic_queue.GenericQueue):
 
         queueItemObj = QueueItemRefresh(show)
         
-        self.queue.append(queueItemObj)
+        self.add_item(queueItemObj)
 
         return queueItemObj
 
@@ -110,13 +111,14 @@ class ShowQueue(generic_queue.GenericQueue):
 
         queueItemObj = QueueItemRename(show)
 
-        self.queue.append(queueItemObj)
+        self.add_item(queueItemObj)
 
         return queueItemObj
 
     def addShow(self, tvdb_id, showDir, default_status=None, quality=None, season_folders=None, lang="en"):
         queueItemObj = QueueItemAdd(tvdb_id, showDir, default_status, quality, season_folders, lang)
-        generic_queue.GenericQueue.add_item(self, queueItemObj)
+        
+        self.add_item(queueItemObj)
 
         return queueItemObj
 
@@ -248,7 +250,7 @@ class QueueItemAdd(ShowQueueItem):
                 self.show.air_by_date = 1
 
         except tvdb_exceptions.tvdb_exception, e:
-            logger.log(u"Unable to add show due to an error with TVDB: "+e.message.decode('utf-8'), logger.ERROR)
+            logger.log(u"Unable to add show due to an error with TVDB: "+ex(e), logger.ERROR)
             if self.show:
                 ui.notifications.error("Unable to add "+str(self.show.name)+" due to an error with TVDB")
             else:
@@ -263,7 +265,7 @@ class QueueItemAdd(ShowQueueItem):
             return
 
         except Exception, e:
-            logger.log(u"Error trying to add show: "+e.message.decode('utf-8'), logger.ERROR)
+            logger.log(u"Error trying to add show: "+ex(e), logger.ERROR)
             logger.log(traceback.format_exc(), logger.DEBUG)
             self._finishEarly()
             raise
@@ -376,7 +378,7 @@ class QueueItemUpdate(ShowQueueItem):
         try:
             TVDBEpList = self.show.loadEpisodesFromTVDB(cache=not self.force)
         except tvdb_exceptions.tvdb_exception, e:
-            logger.log(u"Unable to get info from TVDB, the show info will not be refreshed: "+e.message.decode('utf-8'), logger.ERROR)
+            logger.log(u"Unable to get info from TVDB, the show info will not be refreshed: "+ex(e), logger.ERROR)
             TVDBEpList = None
 
         if TVDBEpList == None:
